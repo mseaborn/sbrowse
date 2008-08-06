@@ -9,8 +9,21 @@ import sys
 import wsgiref.simple_server
 
 
+css_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "styles.css")
+
 def handle_request(environ, start_response):
     path = environ["PATH_INFO"]
+    query_list = parse_query(environ["QUERY_STRING"])
+    query = dict(query_list)
+    if path == "/":
+        start_response("200 OK", [("Content-Type", "text/html")])
+        return ["<pre>", str(query), pprint.pformat(environ)]
+    if path == "/search":
+        start_response("302 OK",
+                       [("Location", "http://%s/sym/%s"
+                         % (environ["HTTP_HOST"], query["sym"]))])
+        return ()
     empty, elt, rest = path.split("/", 2)
     if elt == "sym":
         start_response("200 OK", [("Content-Type", "text/html")])
@@ -22,7 +35,30 @@ def handle_request(environ, start_response):
         start_response("404 Not found", [("Content-Type", "text/html")])
         return ["404 Not found"]
 
+# There must be a library function that does this and handles quoted
+# chars properly...
+def parse_query(query):
+    if query == "":
+        return []
+    else:
+        return [elt.split("=", 1) for elt in query.split("&")]
+
+def stylesheet():
+    fh = open(css_file, "r")
+    try:
+        yield "<style type='text/css'>\n"
+        yield fh.read()
+        yield "</style>\n"
+    finally:
+        fh.close()
+
 def sym_search(sym):
+    for x in stylesheet():
+        yield x
+    yield output_tag([tag("title", "symbol: ", sym),
+                      tagp("div", [("class", "box")],
+                           tag("div", breadcrumb_path("")),
+                           tag("div", search_form(sym)))])
     proc = subprocess.Popen(
         ["sh", "-c",
          """ find -not -name "*.pyc" | xargs grep -l -i "$1" """,
@@ -32,7 +68,7 @@ def sym_search(sym):
     sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
     syms_found = {}
     syms_found_ci = {}
-    yield "<pre>"
+    yield "<pre class=code>"
     for pipe_line in proc.stdout:
         filename = pipe_line.rstrip("\n\r")
         fh = open(filename, "r")
@@ -87,9 +123,11 @@ def format_sym_list(syms):
     return tag("ul", body)
 
 def show_file(filename):
+    for x in stylesheet():
+        yield x
     fh = open(filename, "r")
     try:
-        yield "<pre>"
+        yield "<pre class=code>"
         for line_no, line in enumerate(fh):
             yield "<a name='line%i'>" % (line_no + 1)
             for token, is_symbol in tokens(line):
@@ -100,6 +138,33 @@ def show_file(filename):
         yield "</pre>"
     finally:
         fh.close()
+
+def search_form(default_sym):
+    script = """
+window.onload = function () {
+    document.getElementById("form_field").focus();
+}
+"""
+    return tagp("form", [("action", "/search"),
+                         ("method", "get")],
+                tagp("input", [("id", "form_field"),
+                               ("type", "text"),
+                               ("name", "sym"),
+                               ("value", default_sym)]),
+                tagp("button", [("name", "search"),
+                                ("type", "submit")],
+                     "Go"),
+                tagp("script", [("language", "javascript")], script))
+
+def breadcrumb_path(path):
+    crumbs = [tagp("a", [("href", "/file/")], "[top]")]
+    path_got = ""
+    for element in path.split("/"):
+        path_got = os.path.join(path_got, element)
+        crumbs.append(["/",
+                       tagp("a", [("href", "/file%s" % path_got)],
+                            cgi.escape(element))])
+    return crumbs
 
 def tokens(line):
     regexp = re.compile("(.*?)([A-Za-z0-9_]+)")
