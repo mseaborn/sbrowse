@@ -139,10 +139,13 @@ def show_file_or_dir(filename):
 def show_file(filename):
     for x in stylesheet():
         yield x
+    links = [tag("div", tagp("a", [("href", url)], name))
+             for name, url in get_file_links(filename)]
     yield output_tag([tag("title", filename),
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path(filename)),
-                           tag("div", search_form("")))])
+                           tag("div", search_form("")),
+                           links)])
     fh = open(filename, "r")
     try:
         yield "<pre class=code>"
@@ -265,6 +268,21 @@ def output_tag(val):
     return out.getvalue()
 
 
+def path_splits(filename):
+    parts = filename.split("/")
+    for i in range(len(parts)):
+        yield ("/".join(parts[:i]),
+               "/".join(parts[i:]))
+
+def get_file_links(filename):
+    for part1, part2 in path_splits(filename):
+        link_file = os.path.join(part1, "crossrefs.sbrowse")
+        if os.path.exists(link_file):
+            for line in open(link_file, "r"):
+                name, url_pattern = line.split(":", 1)
+                yield (name, url_pattern % part2)
+
+
 def main(args):
     port = 8000
     once = False
@@ -277,7 +295,7 @@ def main(args):
         elif arg == "--port":
             port = int(args.pop(0))
         else:
-            raise Error("Unknown argument: %s" % arg)
+            raise Exception("Unknown argument: %s" % arg)
     httpd = wsgiref.simple_server.make_server('', port, handle_request)
     print "Listening on port %i" % port
     if once:
