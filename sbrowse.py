@@ -60,6 +60,24 @@ def stylesheet():
     finally:
         fh.close()
 
+def sym_search_in_filenames(sym):
+    proc = subprocess.Popen(
+        ["sh", "-c", """ find -not -name "*.pyc" """],
+        stdout=subprocess.PIPE, bufsize=1024)
+    sym_regexp = re.compile(re.escape(sym), re.IGNORECASE)
+    yield "<pre class=code>"
+    for pipe_line in proc.stdout:
+        filename = pipe_line.rstrip("\n")
+        match = sym_regexp.search(filename)
+        if match:
+            text = ("%s<strong>%s</strong>%s"
+                    % (cgi.escape(filename[:match.start()]),
+                       cgi.escape(match.group()),
+                       cgi.escape(filename[match.end():])))
+            yield ("<a href='/file/%s'>%s</a>\n"
+                   % (filename, text))
+    yield "</pre>"
+
 def sym_search(sym):
     for x in stylesheet():
         yield x
@@ -67,11 +85,13 @@ def sym_search(sym):
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path("")),
                            tag("div", search_form(sym)))])
+    for x in sym_search_in_filenames(sym):
+        yield x
     proc = subprocess.Popen(
         ["sh", "-c",
          """ find -not -name "*.pyc" | xargs grep -l -i "$1" """,
          "-", sym],
-        stdout=subprocess.PIPE)
+        stdout=subprocess.PIPE, bufsize=1024)
     sym_regexp = re.compile(re.escape(sym))
     sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
     syms_found = {}
