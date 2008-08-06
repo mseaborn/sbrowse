@@ -265,11 +265,25 @@ def output_tag(val):
     return out.getvalue()
 
 
-if __name__ == "__main__":
-    httpd = wsgiref.simple_server.make_server('', 9000, handle_request)
-    print "Listening on port 9000"
-    os.chdir("/home/mseaborn/data/cvs/grieg/conductor/src")
-    if "--once" in sys.argv:
+def main(args):
+    port = 8000
+    once = False
+    while len(args) > 0:
+        arg = args.pop(0)
+        if arg == "--dir":
+            os.chdir(args.pop(0))
+        elif arg == "--once":
+            once = True
+        elif arg == "--port":
+            port = int(args.pop(0))
+        else:
+            raise Error("Unknown argument: %s" % arg)
+    httpd = wsgiref.simple_server.make_server('', port, handle_request)
+    print "Listening on port %i" % port
+    if once:
         httpd.handle_request()
     else:
         httpd.serve_forever()
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
