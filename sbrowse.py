@@ -16,21 +16,29 @@ def handle_request(environ, start_response):
     path = environ["PATH_INFO"]
     query_list = parse_query(environ["QUERY_STRING"])
     query = dict(query_list)
+    host_url = "http://%s" % environ["HTTP_HOST"]
     if path == "/":
         start_response("200 OK", [("Content-Type", "text/html")])
         return ["<pre>", str(query), pprint.pformat(environ)]
     if path == "/search":
         start_response("302 OK",
-                       [("Location", "http://%s/sym/%s"
-                         % (environ["HTTP_HOST"], query["sym"]))])
+                       [("Location", "%s/sym/%s"
+                         % (host_url, query["sym"]))])
         return ()
     empty, elt, rest = path.split("/", 2)
     if elt == "sym":
         start_response("200 OK", [("Content-Type", "text/html")])
         return sym_search(rest)
     elif elt == "file":
-        start_response("200 OK", [("Content-Type", "text/html")])
-        return show_file(rest)
+        filename = rest
+        if (filename != "" and not filename.endswith("/") and
+            os.path.isdir(filename)):
+            start_response("302 OK",
+                           [("Location", "%s/file/%s/" % (host_url, filename))])
+            return ()
+        else:
+            start_response("200 OK", [("Content-Type", "text/html")])
+            return show_file_or_dir(filename)
     else:
         start_response("404 Not found", [("Content-Type", "text/html")])
         return ["404 Not found"]
@@ -122,9 +130,19 @@ def format_sym_list(syms):
                         " (%i)" % count))
     return tag("ul", body)
 
+def show_file_or_dir(filename):
+    if os.path.isdir(fix_path(filename)):
+        return show_dir(filename)
+    else:
+        return show_file(filename)
+
 def show_file(filename):
     for x in stylesheet():
         yield x
+    yield output_tag([tag("title", filename),
+                      tagp("div", [("class", "box")],
+                           tag("div", breadcrumb_path(filename)),
+                           tag("div", search_form("")))])
     fh = open(filename, "r")
     try:
         yield "<pre class=code>"
@@ -138,6 +156,43 @@ def show_file(filename):
         yield "</pre>"
     finally:
         fh.close()
+
+def show_dir(path_orig):
+    path = fix_path(path_orig)
+    for x in stylesheet():
+        yield x
+    yield output_tag([tag("title", path),
+                      tagp("div", [("class", "box")],
+                           tag("div", breadcrumb_path(path_orig)),
+                           tag("div", search_form("")))])
+    def format_entry(leafname):
+        pathname = os.path.join(path, leafname)
+        st = os.stat(pathname)
+        if os.path.isdir(pathname):
+            size = ""
+        else:
+            size = str(st.st_size)
+        return tag("tr",
+                   tagp("td", [("class", "file-size")], size),
+                   tagp("td", [("class", "file-name")],
+                        tagp("a", [("href", leafname)], leafname)))
+    yield output_tag([breadcrumb_path(path),
+                      tagp("table", [("class", "dirlist")],
+                           tag("tr",
+                               tagp("th", [("class", "file-size")], "size"),
+                               tagp("th", [("class", "file-name")], "name")),
+                           [format_entry(leafname)
+                            for leafname in sorted(os.listdir(path))
+                            if not exclude(leafname)])])
+
+def exclude(leafname):
+    return re.search(r"\.pyc$", leafname)
+
+def fix_path(path):
+    if path == "":
+        return "."
+    else:
+        return path
 
 def search_form(default_sym):
     script = """
@@ -162,7 +217,7 @@ def breadcrumb_path(path):
     for element in path.split("/"):
         path_got = os.path.join(path_got, element)
         crumbs.append(["/",
-                       tagp("a", [("href", "/file%s" % path_got)],
+                       tagp("a", [("href", "/file/%s" % path_got)],
                             cgi.escape(element))])
     return crumbs
 
