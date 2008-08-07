@@ -126,6 +126,19 @@ class SymSearch(object):
                 line_out.append(cgi.escape(token))
         return (does_match, line_out)
 
+    def match_file(self, filename):
+        fh = open(filename, "r")
+        try:
+            for line_no, line in enumerate(fh):
+                line = line.rstrip("\n\r")
+                # Regexp search is an optimisation: could be removed
+                if self.sym_regexp.search(line):
+                    does_match, line_out = self.match_line(line)
+                    if does_match:
+                        yield (line_no, line_out)
+        finally:
+            fh.close()
+
 
 def sym_search(sym):
     for x in stylesheet():
@@ -145,23 +158,14 @@ def sym_search(sym):
     yield "<pre class=code>"
     for pipe_line in proc.stdout:
         filename = pipe_line.rstrip("\n\r")
-        fh = open(filename, "r")
-        try:
-            for line_no, line in enumerate(fh):
-                line = line.rstrip("\n\r")
-                # Regexp search is an optimisation: could be removed
-                if matcher.sym_regexp.search(line):
-                    does_match, line_out = matcher.match_line(line)
-                    if does_match:
-                        yield ("<a href='/file/%(file)s#line%(line_no)i'>"
-                               "%(file)s:%(line_no)i</a>:"
-                               % {"file": filename,
-                                  "line_no": line_no + 1})
-                        for x in line_out:
-                            yield x
-                        yield "\n"
-        finally:
-            fh.close()
+        for line_no, line_out in matcher.match_file(filename):
+            yield ("<a href='/file/%(file)s#line%(line_no)i'>"
+                   "%(file)s:%(line_no)i</a>:"
+                   % {"file": filename,
+                      "line_no": line_no + 1})
+            for x in line_out:
+                yield x
+            yield "\n"
     yield "</pre>"
     yield "<hr>Other symbols found:\n"
     if (len(matcher.syms_found) == 0 and
