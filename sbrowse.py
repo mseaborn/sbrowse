@@ -95,6 +95,38 @@ def sym_search_in_filenames(sym):
                    % (filename, text))
     yield "</pre>"
 
+
+class SymSearch(object):
+
+    def __init__(self, sym):
+        self.sym = sym
+        self.sym_regexp = re.compile(re.escape(sym))
+        self.sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
+        self.syms_found = {}
+        self.syms_found_ci = {}
+
+    def match_line(self, line):
+        """Tells you whether the line matches and returns a formatted version
+        of the line with the matches highlighted."""
+        does_match = False
+        line_out = []
+        for token, is_symbol in tokens(line):
+            if token == self.sym:
+                line_out.append("<strong>%s</strong>" % token)
+                does_match = True
+            elif is_symbol:
+                line_out.append(link_token(token))
+                if self.sym_regexp.search(token):
+                    self.syms_found[token] = \
+                        self.syms_found.get(token, 0) + 1
+                elif self.sym_regexp_ci.search(token):
+                    self.syms_found_ci[token] = \
+                        self.syms_found_ci.get(token, 0) + 1
+            else:
+                line_out.append(cgi.escape(token))
+        return (does_match, line_out)
+
+
 def sym_search(sym):
     for x in stylesheet():
         yield x
@@ -109,10 +141,7 @@ def sym_search(sym):
          """ find -not -name "*.pyc" | xargs grep -l -i "$1" """,
          "-", sym],
         stdout=subprocess.PIPE, bufsize=1024)
-    sym_regexp = re.compile(re.escape(sym))
-    sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
-    syms_found = {}
-    syms_found_ci = {}
+    matcher = SymSearch(sym)
     yield "<pre class=code>"
     for pipe_line in proc.stdout:
         filename = pipe_line.rstrip("\n\r")
@@ -121,21 +150,8 @@ def sym_search(sym):
             for line_no, line in enumerate(fh):
                 line = line.rstrip("\n\r")
                 # Regexp search is an optimisation: could be removed
-                if sym_regexp.search(line):
-                    does_match = False
-                    line_out = []
-                    for token, is_symbol in tokens(line):
-                        if token == sym:
-                            line_out.append("<strong>%s</strong>" % token)
-                            does_match = True
-                        elif is_symbol:
-                            line_out.append(link_token(token))
-                            if sym_regexp.search(token):
-                                syms_found[token] = syms_found.get(token, 0) + 1
-                            elif sym_regexp_ci.search(token):
-                                syms_found_ci[token] = syms_found_ci.get(token, 0) + 1
-                        else:
-                            line_out.append(cgi.escape(token))
+                if matcher.sym_regexp.search(line):
+                    does_match, line_out = matcher.match_line(line)
                     if does_match:
                         yield ("<a href='/file/%(file)s#line%(line_no)i'>"
                                "%(file)s:%(line_no)i</a>:"
@@ -148,15 +164,15 @@ def sym_search(sym):
             fh.close()
     yield "</pre>"
     yield "<hr>Other symbols found:\n"
-    if (len(syms_found) == 0 and
-        len(syms_found_ci) == 0):
+    if (len(matcher.syms_found) == 0 and
+        len(matcher.syms_found_ci) == 0):
         yield "none"
     else:
-        if len(syms_found) > 0:
-            yield output_tag(format_sym_list(syms_found))
-        if len(syms_found_ci) > 0:
+        if len(matcher.syms_found) > 0:
+            yield output_tag(format_sym_list(matcher.syms_found))
+        if len(matcher.syms_found_ci) > 0:
             yield "with case relaxed:\n"
-            yield output_tag(format_sym_list(syms_found_ci))
+            yield output_tag(format_sym_list(matcher.syms_found_ci))
 
 def format_sym_list(syms):
     body = []
