@@ -152,7 +152,7 @@ def sym_search(url_root, sym):
         yield x
     proc = subprocess.Popen(
         ["sh", "-c",
-         """ find -not -name "*.pyc" | xargs grep -l -i "$1" """,
+         """ find -not -name "*.pyc" -print0 | xargs --null grep -l -i "$1" """,
          "-", sym],
         stdout=subprocess.PIPE, bufsize=1024)
     matcher = SymSearch(sym)
