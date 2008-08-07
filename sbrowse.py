@@ -133,7 +133,7 @@ class SymSearch(object):
             for line_no, line in enumerate(fh):
                 line = line.rstrip("\n\r")
                 # Regexp search is an optimisation: could be removed
-                if self.sym_regexp.search(line):
+                if self.sym_regexp_ci.search(line):
                     does_match, line_out = self.match_line(url_root, line)
                     if does_match:
                         yield (line_no, line_out)
@@ -152,7 +152,7 @@ def sym_search(url_root, sym):
         yield x
     proc = subprocess.Popen(
         ["sh", "-c",
-         """ find -not -name "*.pyc" -print0 | xargs --null grep -l -i "$1" """,
+         """ find -not -name "*.pyc" -and -not -name "*~" -and -not -name "#*#" -print0 | xargs --null grep -l -i "$1" """,
          "-", sym],
         stdout=subprocess.PIPE, bufsize=1024)
     matcher = SymSearch(sym)
@@ -294,7 +294,13 @@ def show_dir(url_root, path_orig):
                             if not exclude(leafname)])])
 
 def exclude(leafname):
-    return re.search(r"\.pyc$", leafname)
+    regexps = [r"\.pyc$",
+               r"^#.*#$",
+               r"~"]
+    for regexp in regexps:
+        if re.search(regexp, leafname):
+            return True
+    return False
 
 def fix_path(path):
     if path == "":
