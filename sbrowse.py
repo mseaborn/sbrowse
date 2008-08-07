@@ -156,20 +156,29 @@ def sym_search(url_root, sym):
          "-", sym],
         stdout=subprocess.PIPE, bufsize=1024)
     matcher = SymSearch(sym)
-    yield "<pre class=code>"
+    yield "<div class=all_matches>"
     for pipe_line in proc.stdout:
         filename = pipe_line.rstrip("\n\r")
+        file_matches = False
         for line_no, line_out in matcher.match_file(url_root, filename):
+            args = {"root": url_root,
+                    "sym": sym,
+                    "file": filename,
+                    "line_no": line_no + 1}
+            if not file_matches:
+                file_matches = True
+                yield ("<a href='/file/%(file)s#line%(line_no)i'>"
+                       "%(file)s:%(line_no)i</a>:"
+                       % args)
+            yield "<div class='code matches_in_file'>"
             yield ("<a href='%(root)s/file/%(file)s?sym=%(sym)s#line%(line_no)i'>"
-                   "%(file)s:%(line_no)i</a>:"
-                   % {"root": url_root,
-                      "sym": sym,
-                      "file": filename,
-                      "line_no": line_no + 1})
+                   "%(line_no)i</a>:"
+                   % args)
             for x in line_out:
                 yield x
+            yield "</div>"
             yield "\n"
-    yield "</pre>"
+    yield "</div>"
     yield "<hr>Other symbols found:\n"
     if (len(matcher.syms_found) == 0 and
         len(matcher.syms_found_ci) == 0):
