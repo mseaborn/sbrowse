@@ -56,7 +56,7 @@ def handle_request(environ, start_response):
             return ()
         else:
             start_response("200 OK", [("Content-Type", "text/html")])
-            return show_file_or_dir(url_root, filename)
+            return show_file_or_dir(url_root, filename, query)
     else:
         start_response("404 Not found", [("Content-Type", "text/html")])
         return ["404 Not found"]
@@ -160,9 +160,10 @@ def sym_search(url_root, sym):
     for pipe_line in proc.stdout:
         filename = pipe_line.rstrip("\n\r")
         for line_no, line_out in matcher.match_file(url_root, filename):
-            yield ("<a href='%(root)s/file/%(file)s#line%(line_no)i'>"
+            yield ("<a href='%(root)s/file/%(file)s?sym=%(sym)s#line%(line_no)i'>"
                    "%(file)s:%(line_no)i</a>:"
                    % {"root": url_root,
+                      "sym": sym,
                       "file": filename,
                       "line_no": line_no + 1})
             for x in line_out:
@@ -189,13 +190,13 @@ def format_sym_list(url_root, syms):
                         " (%i)" % count))
     return tag("ul", body)
 
-def show_file_or_dir(url_root, filename):
+def show_file_or_dir(url_root, filename, query):
     if os.path.isdir(fix_path(filename)):
         return show_dir(url_root, filename)
     else:
-        return show_file(url_root, filename)
+        return show_file(url_root, filename, query)
 
-def show_file(url_root, filename):
+def show_file(url_root, filename, query):
     for x in stylesheet():
         yield x
     links = [tag("div", tagp("a", [("href", url)], name))
@@ -205,19 +206,55 @@ def show_file(url_root, filename):
                            tag("div", breadcrumb_path(url_root, filename)),
                            tag("div", search_form(url_root, "")),
                            links)])
-    fh = open(filename, "r")
-    try:
-        yield "<pre class=code>"
-        for line_no, line in enumerate(fh):
-            yield "<a name='line%i'>" % (line_no + 1)
-            for token, is_symbol in tokens(line):
-                if is_symbol:
-                    yield link_token(url_root, token)
+    if "sym" in query:
+        matcher = SymSearch(query["sym"])
+        match_line_nos = []
+        fh = open(filename, "r")
+        try:
+            for line_no, line in enumerate(fh):
+                does_match, line_out = matcher.match_line(url_root, line)
+                if does_match:
+                    match_line_nos.append(line_no)
+        finally:
+            fh.close()
+        yield output_tag(tagp("div", [("class", "box")],
+                              [[tagp("a", [("href", "#line%s" % (line_no + 1))],
+                                     str(line_no)),
+                                " "]
+                               for line_no in match_line_nos]))
+
+        matcher = SymSearch(query["sym"])
+        fh = open(filename, "r")
+        try:
+            yield "<pre class=code>"
+            for line_no, line in enumerate(fh):
+                line = line.rstrip("\n\r")
+                does_match, line_out = matcher.match_line(url_root, line)
+                if does_match:
+                    yield "<span class=highlight>"
                 else:
-                    yield cgi.escape(token)
-        yield "</pre>"
-    finally:
-        fh.close()
+                    yield "<span>"
+                yield "<a name='line%i'></a>" % (line_no + 1)
+                for x in line_out:
+                    yield x
+                yield "</span>\n"
+            yield "</pre>"
+        finally:
+            fh.close()
+    else:
+        fh = open(filename, "r")
+        try:
+            yield "<pre class=code>"
+            for line_no, line in enumerate(fh):
+                yield "<a name='line%i'>" % (line_no + 1)
+                for token, is_symbol in tokens(line):
+                    if is_symbol:
+                        yield link_token(url_root, token)
+                    else:
+                        yield cgi.escape(token)
+            yield "</pre>"
+        finally:
+            fh.close()
 
 def show_dir(url_root, path_orig):
     path = fix_path(path_orig)

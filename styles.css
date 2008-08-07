@@ -40,3 +40,7 @@ table.dirlist .file-size {
 table.dirlist .file-name {
   text-align: left;
 }
+
+.highlight {
+  background-color: yellow;
+}
