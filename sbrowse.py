@@ -18,6 +18,7 @@
 
 import cStringIO as StringIO
 import cgi
+import optparse
 import os
 import pprint
 import re
@@ -395,31 +396,30 @@ def get_file_links(filename):
                 yield (name, url_pattern % part2)
 
 
-def main(args):
-    do_cgi = False
-    port = 8000
-    once = False
-    while len(args) > 0:
-        arg = args.pop(0)
-        if arg == "--dir":
-            os.chdir(args.pop(0))
-        elif arg == "--cgi":
-            do_cgi = True
-        elif arg == "--once":
-            once = True
-        elif arg == "--port":
-            port = int(args.pop(0))
-        else:
-            raise Exception("Unknown argument: %s" % arg)
-    if do_cgi:
+def main(argv):
+    parser = optparse.OptionParser()
+    parser.add_option("--dir", "-d", dest="dir_path", default=".",
+                      help="Directory to serve")
+    parser.add_option("--port", "-p", dest="port", default=8000, type="int",
+                      help="TCP port number to serve HTTP on")
+    parser.add_option("--cgi", dest="do_cgi", action="store_true",
+                      help="Act as a CGI script")
+    parser.add_option("--once", dest="do_once", action="store_true",
+                      help="Serve only one HTTP request (for debugging)")
+    options, args = parser.parse_args(argv)
+    if len(args) != 0:
+        parser.error("Unexpected arguments")
+    os.chdir(options.dir_path)
+    if options.do_cgi:
         wsgiref.handlers.CGIHandler().run(handle_request)
     else:
-        httpd = wsgiref.simple_server.make_server('', port, handle_request)
-        print "Listening on port %i" % port
-        if once:
+        httpd = wsgiref.simple_server.make_server("", options.port, handle_request)
+        print "Listening on port %i" % options.port
+        if options.do_once:
             httpd.handle_request()
         else:
             httpd.serve_forever()
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
