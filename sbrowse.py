@@ -20,7 +20,6 @@ import cStringIO as StringIO
 import cgi
 import optparse
 import os
-import pprint
 import re
 import subprocess
 import sys
@@ -37,8 +36,8 @@ def handle_request(environ, start_response):
     query = dict(query_list)
     host_url = "http://%s" % environ["HTTP_HOST"]
     if path == "/":
-        start_response("200 OK", [("Content-Type", "text/html")])
-        return ["<pre>", str(query), pprint.pformat(environ)]
+        start_response("302 OK", [("Location", "%s/file/" % url_root)])
+        return ()
     if path == "/search":
         start_response("302 OK",
                        [("Location", "%s/sym/%s"
