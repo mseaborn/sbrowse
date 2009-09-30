@@ -29,20 +29,28 @@ import wsgiref.simple_server
 css_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "styles.css")
 
+
+def not_found(start_response):
+    start_response("404 Not found", [("Content-Type", "text/html")])
+    return ["404 Not found"]
+
+
 def handle_request(environ, start_response):
-    path = environ.get("PATH_INFO", "/")
+    path = environ.get("PATH_INFO", "/").lstrip("/")
     url_root = environ["SCRIPT_NAME"]
     query = dict(cgi.parse_qsl(environ["QUERY_STRING"]))
     host_url = "http://%s" % environ["HTTP_HOST"]
-    if path == "/":
+    if path == "":
         start_response("302 OK", [("Location", "%s/file/" % url_root)])
         return ()
-    if path == "/search":
+    if path == "search":
         start_response("302 OK",
                        [("Location", "%s/sym/%s"
                          % (url_root, query["sym"]))])
         return ()
-    empty, elt, rest = path.split("/", 2)
+    if "/" not in path:
+        return not_found(start_response)
+    elt, rest = path.split("/", 2)
     if elt == "sym":
         start_response("200 OK", [("Content-Type", "text/html")])
         return sym_search(url_root, rest)
@@ -57,8 +65,7 @@ def handle_request(environ, start_response):
             start_response("200 OK", [("Content-Type", "text/html")])
             return show_file_or_dir(url_root, filename, query)
     else:
-        start_response("404 Not found", [("Content-Type", "text/html")])
-        return ["404 Not found"]
+        return not_found(start_response)
 
 
 def stylesheet():
