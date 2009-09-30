@@ -32,8 +32,7 @@ css_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 def handle_request(environ, start_response):
     path = environ.get("PATH_INFO", "/")
     url_root = environ["SCRIPT_NAME"]
-    query_list = parse_query(environ["QUERY_STRING"])
-    query = dict(query_list)
+    query = dict(cgi.parse_qsl(environ["QUERY_STRING"]))
     host_url = "http://%s" % environ["HTTP_HOST"]
     if path == "/":
         start_response("302 OK", [("Location", "%s/file/" % url_root)])
@@ -61,13 +60,6 @@ def handle_request(environ, start_response):
         start_response("404 Not found", [("Content-Type", "text/html")])
         return ["404 Not found"]
 
-# There must be a library function that does this and handles quoted
-# chars properly...
-def parse_query(query):
-    if query == "":
-        return []
-    else:
-        return [elt.split("=", 1) for elt in query.split("&")]
 
 def stylesheet():
     fh = open(css_file, "r")
