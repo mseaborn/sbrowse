@@ -1,0 +1,40 @@
+<link rel="stylesheet" href="../styles.css"/>
+<title>symbol: foo</title><div class='box'><div><a href='script_name/file/'>[top]</a>/<a href='script_name/file/'></a></div><div><form action='script_name/search' method='get'><input id='form_field' type='text' name='sym' value='foo'></input><button name='search' type='submit'>Go</button><script language='javascript'>
+window.onload = function () {
+    document.getElementById("form_field").focus();
+}
+</script></form></div></div>
+<pre class=code>
+<a href='script_name/file/./foofile'>./<strong>foo</strong>file</a>
+
+<a href='script_name/file/./foodir'>./<strong>foo</strong>dir</a>
+
+</pre>
+<div class=all_matches>
+<a href='script_name/file/./foofile?sym=foo#line1'>./foofile:1</a>:
+<div class='code matches_in_file'>
+<a href='script_name/file/./foofile?sym=foo#line1'>1</a>:
+
+<strong>foo</strong>
+ 
+<a href='script_name/sym/data'>data</a>
+!
+</div>
+
+
+<div class='code matches_in_file'>
+<a href='script_name/file/./foofile?sym=foo#line3'>3</a>:
+
+<a href='script_name/sym/another'>another</a>
+ 
+<strong>foo</strong>
+ 
+<a href='script_name/sym/match'>match</a>
+
+</div>
+
+
+</div>
+<hr>Other symbols found:
+
+none

@@ -18,9 +18,22 @@
 
 import os
 import unittest
+import subprocess
+import sys
 
 import sbrowse
 import tempdir_test
+
+
+SCRIPT_DIR = os.path.dirname(__file__)
+
+
+def read_file(filename):
+    fh = open(filename, "r")
+    try:
+        return fh.read()
+    finally:
+        fh.close()
 
 
 def write_file(filename, data):
@@ -44,40 +57,69 @@ class TokenizerTest(unittest.TestCase):
                            (" && ", False)])
 
 
-class RequestTests(tempdir_test.TempDirTestCase):
+class GoldenTest(object):
 
-    def get_response(self, uri):
+    update_golden = False
+
+    def assert_golden(self, data, leafname):
+        expect_file = os.path.join(SCRIPT_DIR, "testdata", leafname)
+        if not (os.path.exists(expect_file) and
+                data == read_file(expect_file)):
+            if self.update_golden:
+                write_file(expect_file, data)
+                print "updated %s" % expect_file
+            else:
+                temp_file = os.path.join(self.make_temp_dir(), leafname)
+                proc = subprocess.Popen(["diff", "-u", expect_file, temp_file],
+                                        stdout=subprocess.PIPE)
+                diff = proc.communicate()[0]
+                assert proc.wait() == 0, proc.wait()
+                raise AssertionError(
+                    "Actual output did not match expected file %r:\n%s"
+                    % (expect_file, diff))
+
+
+class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
+
+    def get_response(self, uri, query=""):
         # TODO: Don't require monkey-patching
-        sbrowse.stylesheet = lambda: ()
+        sbrowse.stylesheet = \
+            lambda: ['<link rel="stylesheet" href="../styles.css"/>']
         def start_response(response_code, headers):
             self.assertEquals(response_code, "200 OK")
         environ = {"SCRIPT_NAME": "script_name",
                    "PATH_INFO": uri,
-                   "QUERY_STRING": "",
+                   "QUERY_STRING": query,
                    "HTTP_HOST": "localhost:8000"}
         return "\n".join(sbrowse.handle_request(environ, start_response))
 
     def example_input(self):
         tempdir = self.make_temp_dir()
-        write_file(os.path.join(tempdir, "foofile"), "foo data!")
+        write_file(os.path.join(tempdir, "foofile"),
+                   "foo data!\nmore data\nanother foo match\n")
         os.mkdir(os.path.join(tempdir, "foodir"))
         # TODO: Pass directory as argument
         os.chdir(tempdir)
 
     def test_symbol_search(self):
         self.example_input()
-        # TODO: Check the output
-        self.get_response("/sym/foo")
+        page = self.get_response("/sym/foo")
+        self.assert_golden(page, "search.html")
 
     def test_file_display(self):
         self.example_input()
-        # TODO: Check the output
-        self.get_response("/file/foofile")
+        page = self.get_response("/file/foofile")
+        self.assert_golden(page, "file-display.html")
+
+    def test_file_display_with_highlight(self):
+        self.example_input()
+        page = self.get_response("/file/foofile", "sym=foo")
+        self.assert_golden(page, "file-display-highlight.html")
 
     def test_directory_listing(self):
         self.example_input()
-        # TODO: Check the output
-        self.get_response("/file/")
+        page = self.get_response("/file/")
+        self.assert_golden(page, "dir-listing.html")
 
     def check_for_redirect(self, uri, dest, query=""):
         # TODO: Don't require monkey-patching
@@ -103,4 +145,7 @@ class RequestTests(tempdir_test.TempDirTestCase):
 
 
 if __name__ == "__main__":
+    if "--update" in sys.argv:
+        GoldenTest.update_golden = True
+        sys.argv.remove("--update")
     unittest.main()
