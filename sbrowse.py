@@ -91,8 +91,10 @@ class FSFileSet(object):
         return open(os.path.join(self._dir_path, filename), "r")
 
     def list_files(self):
+        # Note that with the sorting there is no pipelining, so we may
+        # as well do this in Python.
         proc = subprocess.Popen(
-            ["sh", "-c", 'find -not -name "*.pyc"'],
+            ["sh", "-c", 'find -not -name "*.pyc" | sort'],
             stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
         for line in proc.stdout:
             yield line.rstrip("\n")
