@@ -98,6 +98,7 @@ class FSFileSet(object):
             yield line.rstrip("\n")
 
     def grep_files(self, sym):
+        # Note that using "-i" makes this go a lot slower.
         proc = subprocess.Popen(
             ["sh", "-c",
              'find -not -name "*.pyc" '
