@@ -100,6 +100,7 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
         write_file(os.path.join(tempdir, "foofile"),
                    "foo data!\nmore data\nanother foo match\n")
         os.mkdir(os.path.join(tempdir, "foodir"))
+        write_file(os.path.join(tempdir, "foodir/nested-file"), "nested")
         return sbrowse.FSFileSet(tempdir)
 
     def test_symbol_search(self):
@@ -116,6 +117,11 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
         fileset = self.example_input()
         page = self.get_response(fileset, "/file/foofile", "sym=foo")
         self.assert_golden(page, "file-display-highlight.html")
+
+    def test_file_display_nested(self):
+        fileset = self.example_input()
+        # TODO: Check the output
+        self.get_response(fileset, "/file/foodir/nested-file")
 
     def test_directory_listing(self):
         fileset = self.example_input()

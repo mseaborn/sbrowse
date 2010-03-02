@@ -51,7 +51,7 @@ def handle_request(fileset, environ, start_response):
         return ()
     if "/" not in path:
         return not_found(start_response)
-    elt, rest = path.split("/", 2)
+    elt, rest = path.split("/", 1)
     if elt == "sym":
         start_response("200 OK", [("Content-Type", "text/html")])
         return sym_search(fileset, url_root, rest)
