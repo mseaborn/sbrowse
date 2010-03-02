@@ -60,6 +60,7 @@ class RequestTests(tempdir_test.TempDirTestCase):
     def example_input(self):
         tempdir = self.make_temp_dir()
         write_file(os.path.join(tempdir, "foofile"), "foo data!")
+        os.mkdir(os.path.join(tempdir, "foodir"))
         # TODO: Pass directory as argument
         os.chdir(tempdir)
 
@@ -77,6 +78,28 @@ class RequestTests(tempdir_test.TempDirTestCase):
         self.example_input()
         # TODO: Check the output
         self.get_response("/file/")
+
+    def check_for_redirect(self, uri, dest, query=""):
+        # TODO: Don't require monkey-patching
+        sbrowse.stylesheet = lambda: ()
+        def start_response(response_code, headers):
+            self.assertEquals(response_code, "302 OK")
+            self.assertEquals(headers, [("Location", "script_name" + dest)])
+        environ = {"SCRIPT_NAME": "script_name",
+                   "PATH_INFO": uri,
+                   "QUERY_STRING": query,
+                   "HTTP_HOST": "localhost:8000"}
+        list(sbrowse.handle_request(environ, start_response))
+
+    def test_root_redirect(self):
+        self.check_for_redirect("/", dest="/file/")
+
+    def test_search_redirect(self):
+        self.check_for_redirect("/search", query="sym=shoe", dest="/sym/shoe")
+
+    def test_dir_redirect(self):
+        self.example_input()
+        self.check_for_redirect("/file/foodir", dest="/file/foodir/")
 
 
 if __name__ == "__main__":
