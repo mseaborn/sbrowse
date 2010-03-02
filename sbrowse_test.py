@@ -70,10 +70,11 @@ class GoldenTest(object):
                 print "updated %s" % expect_file
             else:
                 temp_file = os.path.join(self.make_temp_dir(), leafname)
+                write_file(temp_file, data)
                 proc = subprocess.Popen(["diff", "-u", expect_file, temp_file],
                                         stdout=subprocess.PIPE)
                 diff = proc.communicate()[0]
-                assert proc.wait() == 0, proc.wait()
+                assert proc.wait() == 1, proc.wait()
                 raise AssertionError(
                     "Actual output did not match expected file %r:\n%s"
                     % (expect_file, diff))
@@ -81,7 +82,7 @@ class GoldenTest(object):
 
 class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
 
-    def get_response(self, uri, query=""):
+    def get_response(self, fileset, uri, query=""):
         # TODO: Don't require monkey-patching
         sbrowse.stylesheet = \
             lambda: ['<link rel="stylesheet" href="../styles.css"/>']
@@ -91,37 +92,37 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
                    "PATH_INFO": uri,
                    "QUERY_STRING": query,
                    "HTTP_HOST": "localhost:8000"}
-        return "\n".join(sbrowse.handle_request(environ, start_response))
+        iterable = sbrowse.handle_request(fileset, environ, start_response)
+        return "\n".join(iterable)
 
     def example_input(self):
         tempdir = self.make_temp_dir()
         write_file(os.path.join(tempdir, "foofile"),
                    "foo data!\nmore data\nanother foo match\n")
         os.mkdir(os.path.join(tempdir, "foodir"))
-        # TODO: Pass directory as argument
-        os.chdir(tempdir)
+        return sbrowse.FSFileSet(tempdir)
 
     def test_symbol_search(self):
-        self.example_input()
-        page = self.get_response("/sym/foo")
+        fileset = self.example_input()
+        page = self.get_response(fileset, "/sym/foo")
         self.assert_golden(page, "search.html")
 
     def test_file_display(self):
-        self.example_input()
-        page = self.get_response("/file/foofile")
+        fileset = self.example_input()
+        page = self.get_response(fileset, "/file/foofile")
         self.assert_golden(page, "file-display.html")
 
     def test_file_display_with_highlight(self):
-        self.example_input()
-        page = self.get_response("/file/foofile", "sym=foo")
+        fileset = self.example_input()
+        page = self.get_response(fileset, "/file/foofile", "sym=foo")
         self.assert_golden(page, "file-display-highlight.html")
 
     def test_directory_listing(self):
-        self.example_input()
-        page = self.get_response("/file/")
+        fileset = self.example_input()
+        page = self.get_response(fileset, "/file/")
         self.assert_golden(page, "dir-listing.html")
 
-    def check_for_redirect(self, uri, dest, query=""):
+    def check_for_redirect(self, fileset, uri, dest, query=""):
         # TODO: Don't require monkey-patching
         sbrowse.stylesheet = lambda: ()
         def start_response(response_code, headers):
@@ -131,17 +132,20 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
                    "PATH_INFO": uri,
                    "QUERY_STRING": query,
                    "HTTP_HOST": "localhost:8000"}
-        list(sbrowse.handle_request(environ, start_response))
+        list(sbrowse.handle_request(fileset, environ, start_response))
 
     def test_root_redirect(self):
-        self.check_for_redirect("/", dest="/file/")
+        fileset = self.example_input()
+        self.check_for_redirect(fileset, "/", dest="/file/")
 
     def test_search_redirect(self):
-        self.check_for_redirect("/search", query="sym=shoe", dest="/sym/shoe")
+        fileset = self.example_input()
+        self.check_for_redirect(fileset, "/search", query="sym=shoe",
+                                dest="/sym/shoe")
 
     def test_dir_redirect(self):
-        self.example_input()
-        self.check_for_redirect("/file/foodir", dest="/file/foodir/")
+        fileset = self.example_input()
+        self.check_for_redirect(fileset, "/file/foodir", dest="/file/foodir/")
 
 
 if __name__ == "__main__":

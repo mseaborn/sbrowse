@@ -18,6 +18,7 @@
 
 import cStringIO as StringIO
 import cgi
+import functools
 import optparse
 import os
 import re
@@ -35,7 +36,7 @@ def not_found(start_response):
     return ["404 Not found"]
 
 
-def handle_request(environ, start_response):
+def handle_request(fileset, environ, start_response):
     path = environ.get("PATH_INFO", "/").lstrip("/")
     url_root = environ["SCRIPT_NAME"]
     query = dict(cgi.parse_qsl(environ["QUERY_STRING"]))
@@ -53,17 +54,17 @@ def handle_request(environ, start_response):
     elt, rest = path.split("/", 2)
     if elt == "sym":
         start_response("200 OK", [("Content-Type", "text/html")])
-        return sym_search(url_root, rest)
+        return sym_search(fileset, url_root, rest)
     elif elt == "file":
         filename = rest
         if (filename != "" and not filename.endswith("/") and
-            os.path.isdir(filename)):
+            os.path.isdir(fileset.get_path(filename))):
             start_response("302 OK",
                            [("Location", "%s/file/%s/" % (url_root, filename))])
             return ()
         else:
             start_response("200 OK", [("Content-Type", "text/html")])
-            return show_file_or_dir(url_root, filename, query)
+            return show_file_or_dir(fileset, url_root, filename, query)
     else:
         return not_found(start_response)
 
@@ -77,14 +78,42 @@ def stylesheet():
     finally:
         fh.close()
 
-def sym_search_in_filenames(url_root, sym):
-    proc = subprocess.Popen(
-        ["sh", "-c", """ find -not -name "*.pyc" """],
-        stdout=subprocess.PIPE, bufsize=1024)
+
+class FSFileSet(object):
+
+    def __init__(self, dir_path):
+        self._dir_path = dir_path
+
+    def get_path(self, filename):
+        return os.path.join(self._dir_path, filename)
+
+    def open_file(self, filename):
+        return open(os.path.join(self._dir_path, filename), "r")
+
+    def list_files(self):
+        proc = subprocess.Popen(
+            ["sh", "-c", 'find -not -name "*.pyc"'],
+            stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
+        for line in proc.stdout:
+            yield line.rstrip("\n")
+
+    def grep_files(self, sym):
+        proc = subprocess.Popen(
+            ["sh", "-c",
+             'find -not -name "*.pyc" '
+             '-and -not -name "*~" '
+             '-and -not -name "#*#" '
+             '-print0 | xargs --null grep -l -i "$1"',
+             "-", sym],
+            stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
+        for line in proc.stdout:
+            yield line.rstrip("\n")
+
+
+def sym_search_in_filenames(fileset, url_root, sym):
     sym_regexp = re.compile(re.escape(sym), re.IGNORECASE)
     yield "<pre class=code>"
-    for pipe_line in proc.stdout:
-        filename = pipe_line.rstrip("\n")
+    for filename in fileset.list_files():
         match = sym_regexp.search(filename)
         if match:
             text = ("%s<strong>%s</strong>%s"
@@ -126,40 +155,31 @@ class SymSearch(object):
                 line_out.append(cgi.escape(token))
         return (does_match, line_out)
 
-    def match_file(self, url_root, filename):
-        fh = open(filename, "r")
-        try:
-            for line_no, line in enumerate(fh):
-                line = line.rstrip("\n\r")
-                # Regexp search is an optimisation: could be removed
-                if self.sym_regexp_ci.search(line):
-                    does_match, line_out = self.match_line(url_root, line)
-                    if does_match:
-                        yield (line_no, line_out)
-        finally:
-            fh.close()
+    def match_lines(self, url_root, lines):
+        for line_no, line in enumerate(lines):
+            line = line.rstrip("\n\r")
+            # Regexp search is an optimisation: could be removed
+            if self.sym_regexp_ci.search(line):
+                does_match, line_out = self.match_line(url_root, line)
+                if does_match:
+                    yield (line_no, line_out)
 
 
-def sym_search(url_root, sym):
+def sym_search(fileset, url_root, sym):
     for x in stylesheet():
         yield x
     yield output_tag([tag("title", "symbol: ", sym),
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path(url_root, "")),
                            tag("div", search_form(url_root, sym)))])
-    for x in sym_search_in_filenames(url_root, sym):
+    for x in sym_search_in_filenames(fileset, url_root, sym):
         yield x
-    proc = subprocess.Popen(
-        ["sh", "-c",
-         """ find -not -name "*.pyc" -and -not -name "*~" -and -not -name "#*#" -print0 | xargs --null grep -l -i "$1" """,
-         "-", sym],
-        stdout=subprocess.PIPE, bufsize=1024)
     matcher = SymSearch(sym)
     yield "<div class=all_matches>"
-    for pipe_line in proc.stdout:
-        filename = pipe_line.rstrip("\n\r")
+    for filename in fileset.grep_files(sym):
         file_matches = False
-        for line_no, line_out in matcher.match_file(url_root, filename):
+        fh = fileset.open_file(filename)
+        for line_no, line_out in matcher.match_lines(url_root, fh):
             args = {"root": url_root,
                     "sym": sym,
                     "file": filename,
@@ -198,13 +218,13 @@ def format_sym_list(url_root, syms):
                         " (%i)" % count))
     return tag("ul", body)
 
-def show_file_or_dir(url_root, filename, query):
-    if os.path.isdir(fix_path(filename)):
-        return show_dir(url_root, filename)
+def show_file_or_dir(fileset, url_root, filename, query):
+    if os.path.isdir(fix_path(fileset.get_path(filename))):
+        return show_dir(fileset, url_root, filename)
     else:
-        return show_file(url_root, filename, query)
+        return show_file(fileset, url_root, filename, query)
 
-def show_file(url_root, filename, query):
+def show_file(fileset, url_root, filename, query):
     for x in stylesheet():
         yield x
     links = [tag("div", tagp("a", [("href", url)], name))
@@ -217,7 +237,7 @@ def show_file(url_root, filename, query):
     if "sym" in query:
         matcher = SymSearch(query["sym"])
         match_line_nos = []
-        fh = open(filename, "r")
+        fh = fileset.open_file(filename)
         try:
             for line_no, line in enumerate(fh):
                 does_match, line_out = matcher.match_line(url_root, line)
@@ -232,7 +252,7 @@ def show_file(url_root, filename, query):
                                for line_no in match_line_nos]))
 
         matcher = SymSearch(query["sym"])
-        fh = open(filename, "r")
+        fh = fileset.open_file(filename)
         try:
             yield "<pre class=code>"
             for line_no, line in enumerate(fh):
@@ -250,7 +270,7 @@ def show_file(url_root, filename, query):
         finally:
             fh.close()
     else:
-        fh = open(filename, "r")
+        fh = fileset.open_file(filename)
         try:
             yield "<pre class=code>"
             for line_no, line in enumerate(fh):
@@ -264,7 +284,7 @@ def show_file(url_root, filename, query):
         finally:
             fh.close()
 
-def show_dir(url_root, path_orig):
+def show_dir(fileset, url_root, path_orig):
     path = fix_path(path_orig)
     for x in stylesheet():
         yield x
@@ -274,8 +294,8 @@ def show_dir(url_root, path_orig):
                            tag("div", search_form(url_root, "")))])
     def format_entry(leafname):
         pathname = os.path.join(path, leafname)
-        st = os.stat(pathname)
-        if os.path.isdir(pathname):
+        st = os.stat(fileset.get_path(pathname))
+        if os.path.isdir(fileset.get_path(pathname)):
             size = ""
         else:
             size = str(st.st_size)
@@ -289,7 +309,8 @@ def show_dir(url_root, path_orig):
                                tagp("th", [("class", "file-size")], "size"),
                                tagp("th", [("class", "file-name")], "name")),
                            [format_entry(leafname)
-                            for leafname in sorted(os.listdir(path))
+                            for leafname in sorted(os.listdir(
+                                                    fileset.get_path(path)))
                             if not exclude(leafname)])])
 
 def exclude(leafname):
@@ -407,11 +428,12 @@ def main(argv):
     options, args = parser.parse_args(argv)
     if len(args) != 0:
         parser.error("Unexpected arguments")
-    os.chdir(options.dir_path)
+    fileset = FSFileSet(options.dir_path)
+    handler = functools.partial(handle_request, fileset)
     if options.do_cgi:
-        wsgiref.handlers.CGIHandler().run(handle_request)
+        wsgiref.handlers.CGIHandler().run(handler)
     else:
-        httpd = wsgiref.simple_server.make_server("", options.port, handle_request)
+        httpd = wsgiref.simple_server.make_server("", options.port, handler)
         print "Listening on port %i" % options.port
         if options.do_once:
             httpd.handle_request()
