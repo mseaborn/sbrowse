@@ -16,14 +16,24 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 # 02110-1301 USA.
 
+import os
 import unittest
 
 import sbrowse
+import tempdir_test
 
 
-class Test(unittest.TestCase):
+def write_file(filename, data):
+    fh = open(filename, "w")
+    try:
+        fh.write(data)
+    finally:
+        fh.close()
 
-    def test(self):
+
+class TokenizerTest(unittest.TestCase):
+
+    def test_tokenizer(self):
         self.assertEquals(list(sbrowse.tokens("  foo !! bar31 + _qux && ")),
                           [("  ", False), 
                            ("foo", True), 
@@ -32,6 +42,41 @@ class Test(unittest.TestCase):
                            (" + ", False), 
                            ("_qux", True), 
                            (" && ", False)])
+
+
+class RequestTests(tempdir_test.TempDirTestCase):
+
+    def get_response(self, uri):
+        # TODO: Don't require monkey-patching
+        sbrowse.stylesheet = lambda: ()
+        def start_response(response_code, headers):
+            self.assertEquals(response_code, "200 OK")
+        environ = {"SCRIPT_NAME": "script_name",
+                   "PATH_INFO": uri,
+                   "QUERY_STRING": "",
+                   "HTTP_HOST": "localhost:8000"}
+        return "\n".join(sbrowse.handle_request(environ, start_response))
+
+    def example_input(self):
+        tempdir = self.make_temp_dir()
+        write_file(os.path.join(tempdir, "foofile"), "foo data!")
+        # TODO: Pass directory as argument
+        os.chdir(tempdir)
+
+    def test_symbol_search(self):
+        self.example_input()
+        # TODO: Check the output
+        self.get_response("/sym/foo")
+
+    def test_file_display(self):
+        self.example_input()
+        # TODO: Check the output
+        self.get_response("/file/foofile")
+
+    def test_directory_listing(self):
+        self.example_input()
+        # TODO: Check the output
+        self.get_response("/file/")
 
 
 if __name__ == "__main__":
