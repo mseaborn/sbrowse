@@ -190,7 +190,7 @@ def sym_search(fileset, url_root, sym):
             if not file_matches:
                 file_matches = True
                 yield ("<a href='%(root)s/file/%(file)s?sym=%(sym)s"
-                       "#line%(line_no)i'>%(file)s:%(line_no)i</a>:"
+                       "#line%(line_no)i'>%(file)s</a>:"
                        % args)
             yield "<div class='code matches_in_file'>"
             yield ("<a href='%(root)s/file/%(file)s?sym=%(sym)s"
