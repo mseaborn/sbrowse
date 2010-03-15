@@ -57,6 +57,21 @@ class TokenizerTest(unittest.TestCase):
                            (" && ", False)])
 
 
+class FileSetTests(tempdir_test.TempDirTestCase):
+
+    def test_git_file_set(self):
+        tempdir = self.make_temp_dir()
+        write_file(os.path.join(tempdir, "foo"), "Hello world")
+        write_file(os.path.join(tempdir, "bar"), "Hello, this is not listed")
+        subprocess.check_call(["git", "init", "-q"], cwd=tempdir)
+        subprocess.check_call(["git", "add", "foo"], cwd=tempdir)
+        fileset = sbrowse.make_fileset(tempdir)
+        self.assertEquals(list(fileset.list_files()), ["foo"])
+        self.assertEquals(list(fileset.grep_files("blah")), [])
+        # "bar" has not been git-added, so shouldn't be listed.
+        self.assertEquals(list(fileset.grep_files("hello")), ["foo"])
+
+
 class GoldenTest(object):
 
     update_golden = False

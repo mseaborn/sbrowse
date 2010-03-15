@@ -79,7 +79,7 @@ def stylesheet():
         fh.close()
 
 
-class FSFileSet(object):
+class FileSetBase(object):
 
     def __init__(self, dir_path):
         self._dir_path = dir_path
@@ -89,6 +89,9 @@ class FSFileSet(object):
 
     def open_file(self, filename):
         return open(os.path.join(self._dir_path, filename), "r")
+
+
+class FSFileSet(FileSetBase):
 
     def list_files(self):
         # Note that with the sorting there is no pipelining, so we may
@@ -109,6 +112,21 @@ class FSFileSet(object):
              '-print0 | xargs --null grep -l -i "$1"',
              "-", sym],
             stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
+        for line in proc.stdout:
+            yield line.rstrip("\n")
+
+
+class GitFileSet(FileSetBase):
+
+    def list_files(self):
+        proc = subprocess.Popen(["git", "ls-files"],
+                                stdout=subprocess.PIPE, cwd=self._dir_path)
+        for line in proc.stdout:
+            yield line.rstrip("\n")
+
+    def grep_files(self, sym):
+        proc = subprocess.Popen(["git", "grep", "-i", "-l", sym],
+                                stdout=subprocess.PIPE, cwd=self._dir_path)
         for line in proc.stdout:
             yield line.rstrip("\n")
 
@@ -418,6 +436,13 @@ def get_file_links(filename):
                 yield (name, url_pattern % part2)
 
 
+def make_fileset(dir_path):
+    if os.path.exists(os.path.join(dir_path, ".git")):
+        return GitFileSet(dir_path)
+    else:
+        return FSFileSet(dir_path)
+
+
 def main(argv):
     parser = optparse.OptionParser()
     parser.add_option("--dir", "-d", dest="dir_path", default=".",
@@ -431,7 +456,7 @@ def main(argv):
     options, args = parser.parse_args(argv)
     if len(args) != 0:
         parser.error("Unexpected arguments")
-    fileset = FSFileSet(options.dir_path)
+    fileset = make_fileset(options.dir_path)
     handler = functools.partial(handle_request, fileset)
     if options.do_cgi:
         wsgiref.handlers.CGIHandler().run(handler)
