@@ -81,8 +81,11 @@ def stylesheet():
 
 class FileSetBase(object):
 
-    def __init__(self, dir_path):
+    def __init__(self, dir_path, case_sensitive=False):
         self._dir_path = dir_path
+        # Setting case_sensitive to True is an optimisation, because
+        # "grep -i" is significantly slower than case-sensitive grep.
+        self._case_sensitive = case_sensitive
 
     def get_path(self, filename):
         return os.path.join(self._dir_path, filename)
@@ -104,12 +107,13 @@ class FSFileSet(FileSetBase):
 
     def grep_files(self, sym):
         # Note that using "-i" makes this go a lot slower.
+        ci_arg = "" if self._case_sensitive else " -i"
         proc = subprocess.Popen(
             ["sh", "-c",
              'find -not -name "*.pyc" '
              '-and -not -name "*~" '
              '-and -not -name "#*#" '
-             '-print0 | xargs --null grep -l -i "$1"',
+             '-print0 | xargs --null grep -l "$1"' + ci_arg,
              "-", sym],
             stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
         for line in proc.stdout:
@@ -125,7 +129,8 @@ class GitFileSet(FileSetBase):
             yield line.rstrip("\n")
 
     def grep_files(self, sym):
-        proc = subprocess.Popen(["git", "grep", "-i", "-l", sym],
+        ci_arg = [] if self._case_sensitive else ["-i"]
+        proc = subprocess.Popen(["git", "grep"] + ci_arg + ["-l", sym],
                                 stdout=subprocess.PIPE, cwd=self._dir_path)
         for line in proc.stdout:
             yield line.rstrip("\n")
@@ -436,11 +441,11 @@ def get_file_links(filename):
                 yield (name, url_pattern % part2)
 
 
-def make_fileset(dir_path):
+def make_fileset(dir_path, **kwargs):
     if os.path.exists(os.path.join(dir_path, ".git")):
-        return GitFileSet(dir_path)
+        return GitFileSet(dir_path, **kwargs)
     else:
-        return FSFileSet(dir_path)
+        return FSFileSet(dir_path, **kwargs)
 
 
 def main(argv):
@@ -453,10 +458,14 @@ def main(argv):
                       help="Act as a CGI script")
     parser.add_option("--once", dest="do_once", action="store_true",
                       help="Serve only one HTTP request (for debugging)")
+    parser.add_option("--cs", "--case-sensitive", dest="case_sensitive",
+                      action="store_true",
+                      help="Grep for symbols case-sensitively (faster)")
     options, args = parser.parse_args(argv)
     if len(args) != 0:
         parser.error("Unexpected arguments")
-    fileset = make_fileset(options.dir_path)
+    fileset = make_fileset(options.dir_path,
+                           case_sensitive=options.case_sensitive)
     handler = functools.partial(handle_request, fileset)
     if options.do_cgi:
         wsgiref.handlers.CGIHandler().run(handler)
