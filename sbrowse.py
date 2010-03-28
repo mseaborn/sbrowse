@@ -319,13 +319,13 @@ def show_file(fileset, url_root, filename, query):
         finally:
             fh.close()
 
-def show_dir(fileset, url_root, path_orig):
-    path = fix_path(path_orig)
+def show_dir(fileset, url_root, path):
+    title = path if path != "" else "[top]"
     for x in stylesheet():
         yield x
-    yield output_tag([tag("title", path),
+    yield output_tag([tag("title", title),
                       tagp("div", [("class", "box")],
-                           tag("div", breadcrumb_path(url_root, path_orig)),
+                           tag("div", breadcrumb_path(url_root, path)),
                            tag("div", search_form(url_root, "")))])
     def format_entry(leafname):
         pathname = os.path.join(path, leafname)
@@ -356,11 +356,6 @@ def exclude(leafname):
             return True
     return False
 
-def fix_path(path):
-    if path == "":
-        return "."
-    else:
-        return path
 
 def search_form(url_root, default_sym):
     script = """
