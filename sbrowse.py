@@ -366,8 +366,7 @@ window.onload = function () {
                                ("type", "text"),
                                ("name", "sym"),
                                ("value", default_sym)]),
-                tagp("button", [("name", "search"),
-                                ("type", "submit")],
+                tagp("button", [("type", "submit")],
                      "Go"),
                 tagp("script", [("language", "javascript")], script))
 
