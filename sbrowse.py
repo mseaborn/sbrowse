@@ -58,7 +58,7 @@ def handle_request(fileset, environ, start_response):
     elif elt == "file":
         filename = rest
         if (filename != "" and not filename.endswith("/") and
-            os.path.isdir(fileset.get_path(filename))):
+            fileset.is_dir(filename)):
             start_response("302 OK",
                            [("Location", "%s/file/%s/" % (url_root, filename))])
             return ()
@@ -87,11 +87,20 @@ class FileSetBase(object):
         # "grep -i" is significantly slower than case-sensitive grep.
         self._case_sensitive = case_sensitive
 
-    def get_path(self, filename):
+    def _get_path(self, filename):
         return os.path.join(self._dir_path, filename)
 
+    def is_dir(self, filename):
+        return os.path.isdir(self._get_path(filename))
+
+    def list_dir(self, filename):
+        return os.listdir(self._get_path(filename))
+
+    def stat_path(self, filename):
+        return os.stat(self._get_path(filename))
+
     def open_file(self, filename):
-        return open(os.path.join(self._dir_path, filename), "r")
+        return open(self._get_path(filename), "r")
 
 
 class FSFileSet(FileSetBase):
@@ -245,7 +254,7 @@ def format_sym_list(url_root, syms):
     return tag("ul", body)
 
 def show_file_or_dir(fileset, url_root, filename, query):
-    if os.path.isdir(fix_path(fileset.get_path(filename))):
+    if fileset.is_dir(filename):
         return show_dir(fileset, url_root, filename)
     else:
         return show_file(fileset, url_root, filename, query)
@@ -320,10 +329,10 @@ def show_dir(fileset, url_root, path_orig):
                            tag("div", search_form(url_root, "")))])
     def format_entry(leafname):
         pathname = os.path.join(path, leafname)
-        st = os.stat(fileset.get_path(pathname))
-        if os.path.isdir(fileset.get_path(pathname)):
+        if fileset.is_dir(pathname):
             size = ""
         else:
+            st = fileset.stat_path(pathname)
             size = str(st.st_size)
         return tag("tr",
                    tagp("td", [("class", "file-size")], size),
@@ -335,8 +344,7 @@ def show_dir(fileset, url_root, path_orig):
                                tagp("th", [("class", "file-size")], "size"),
                                tagp("th", [("class", "file-name")], "name")),
                            [format_entry(leafname)
-                            for leafname in sorted(os.listdir(
-                                                    fileset.get_path(path)))
+                            for leafname in sorted(fileset.list_dir(path))
                             if not exclude(leafname)])])
 
 def exclude(leafname):
