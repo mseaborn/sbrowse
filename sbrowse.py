@@ -103,46 +103,44 @@ class FileSetBase(object):
         return open(self._get_path(filename), "r")
 
 
+def popen_filenames(args, **kwargs):
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, bufsize=1024,
+                            **kwargs)
+    for line in proc.stdout:
+        yield line.rstrip("\n")
+
+
 class FSFileSet(FileSetBase):
 
     def list_files(self):
         # Note that with the sorting there is no pipelining, so we may
         # as well do this in Python.
-        proc = subprocess.Popen(
+        return popen_filenames(
             ["sh", "-c", 'find -not -name "*.pyc" | sort'],
-            stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
-        for line in proc.stdout:
-            yield line.rstrip("\n")
+            cwd=self._dir_path)
 
     def grep_files(self, sym):
         # Note that using "-i" makes this go a lot slower.
         ci_arg = "" if self._case_sensitive else " -i"
-        proc = subprocess.Popen(
+        return popen_filenames(
             ["sh", "-c",
              'find -not -name "*.pyc" '
              '-and -not -name "*~" '
              '-and -not -name "#*#" '
              '-print0 | xargs --null grep -l "$1"' + ci_arg,
              "-", sym],
-            stdout=subprocess.PIPE, bufsize=1024, cwd=self._dir_path)
-        for line in proc.stdout:
-            yield line.rstrip("\n")
+            cwd=self._dir_path)
 
 
 class GitFileSet(FileSetBase):
 
     def list_files(self):
-        proc = subprocess.Popen(["git", "ls-files"],
-                                stdout=subprocess.PIPE, cwd=self._dir_path)
-        for line in proc.stdout:
-            yield line.rstrip("\n")
+        return popen_filenames(["git", "ls-files"], cwd=self._dir_path)
 
     def grep_files(self, sym):
         ci_arg = [] if self._case_sensitive else ["-i"]
-        proc = subprocess.Popen(["git", "grep"] + ci_arg + ["-l", sym],
-                                stdout=subprocess.PIPE, cwd=self._dir_path)
-        for line in proc.stdout:
-            yield line.rstrip("\n")
+        return popen_filenames(["git", "grep"] + ci_arg + ["-l", sym],
+                               cwd=self._dir_path)
 
 
 def sym_search_in_filenames(fileset, url_root, sym):
