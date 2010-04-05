@@ -139,8 +139,9 @@ class GitFileSet(FileSetBase):
 
     def grep_files(self, sym):
         ci_arg = [] if self._case_sensitive else ["-i"]
-        return popen_filenames(["git", "grep"] + ci_arg + ["-l", sym],
-                               cwd=self._dir_path)
+        return popen_filenames(
+            ["git", "grep"] + ci_arg + ["--text", "-l", sym],
+            cwd=self._dir_path)
 
 
 def sym_search_in_filenames(fileset, url_root, sym):
