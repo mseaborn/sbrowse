@@ -203,11 +203,22 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
         self.check_for_redirect(fileset, "/file/foodir", dest="/file/foodir/")
 
     def test_security_initial_slash(self):
-        tempdir = self.make_temp_dir()
-        write_file(os.path.join(tempdir, "expectthis"), "expecteddata")
-        fileset = sbrowse.FSFileSet(tempdir)
-        output = self.get_response(fileset, "/file//expectthis")
-        assert "expecteddata" in output
+        fileset = self.example_input()
+        self.assertRaises(
+            AssertionError,
+            lambda: self.get_response(fileset, "/file//etc/passwd"))
+
+    def test_security_dotdot(self):
+        fileset = self.example_input()
+        self.assertRaises(
+            AssertionError,
+            lambda: self.get_response(fileset, "/file/../somefile"))
+
+    def test_security_subdir_search(self):
+        fileset = self.example_input()
+        self.assertRaises(
+            AssertionError,
+            lambda: self.get_response(fileset, "/search", "sym=root&dir=/etc"))
 
 
 if __name__ == "__main__":

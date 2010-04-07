@@ -46,14 +46,15 @@ def handle_request(fileset, environ, start_response):
         return ()
     if path == "search":
         start_response("200 OK", [("Content-Type", "text/html")])
-        return sym_search(fileset, url_root,
-                          query.get("dir", ""), query["sym"])
+        subdir = query.get("dir", "")
+        check_filename(subdir)
+        return sym_search(fileset, url_root, subdir, query["sym"])
     if "/" not in path:
         return not_found(start_response)
     elt, rest = path.split("/", 1)
     if elt == "file":
-        # We don't want to treat this as an absolute pathname!
-        filename = rest.lstrip("/")
+        filename = rest
+        check_filename(filename)
         if (filename != "" and not filename.endswith("/") and
             fileset.is_dir(filename)):
             start_response("302 OK",
@@ -65,6 +66,14 @@ def handle_request(fileset, environ, start_response):
             return show_file_or_dir(fileset, url_root, filename, subdir, query)
     else:
         return not_found(start_response)
+
+
+def check_filename(filename):
+    if filename.startswith("/"):
+        raise AssertionError("Absolute pathname: %r" % filename)
+    for part in filename.split("/"):
+        if part == "..":
+            raise AssertionError("Pathname %r contains '..'" % filename)
 
 
 def stylesheet():
@@ -86,6 +95,7 @@ class FileSetBase(object):
         self._case_sensitive = case_sensitive
 
     def _get_path(self, filename):
+        check_filename(filename)
         return os.path.join(self._dir_path, filename)
 
     def is_dir(self, filename):
@@ -123,7 +133,7 @@ class FSFileSet(FileSetBase):
         # as well do this in Python.
         return tidy_filelist(popen_filenames(
             ["sh", "-c", 'find -not -name "*.pyc" | sort'],
-            cwd=os.path.join(self._dir_path, subdir)))
+            cwd=self._get_path(subdir)))
 
     def grep_files(self, subdir, sym):
         # Note that using "-i" makes this go a lot slower.
@@ -135,20 +145,20 @@ class FSFileSet(FileSetBase):
              '-and -not -name "#*#" '
              '-print0 | xargs --null grep -l "$1"' + ci_arg,
              "-", sym],
-            cwd=os.path.join(self._dir_path, subdir)))
+            cwd=self._get_path(subdir)))
 
 
 class GitFileSet(FileSetBase):
 
     def list_files(self, subdir):
         return popen_filenames(["git", "ls-files"],
-                               cwd=os.path.join(self._dir_path, subdir))
+                               cwd=self._get_path(subdir))
 
     def grep_files(self, subdir, sym):
         ci_arg = [] if self._case_sensitive else ["-i"]
         return popen_filenames(
             ["git", "grep"] + ci_arg + ["--text", "-l", sym],
-            cwd=os.path.join(self._dir_path, subdir))
+            cwd=self._get_path(subdir))
 
 
 def sym_search_in_filenames(fileset, url_root, subdir, sym):
