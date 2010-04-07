@@ -67,6 +67,15 @@ class FileSetTests(tempdir_test.TempDirTestCase):
         write_file(os.path.join(tempdir, "mysubdir", "jam"), "raspberry")
         return tempdir
 
+    def check_file_set(self, fileset):
+        self.assertEquals(list(fileset.grep_files("", "blah")), [])
+        self.assertEquals(list(fileset.grep_files("", "world")), ["foo"])
+        # Test subdir search
+        self.assertEquals(list(fileset.list_files("mysubdir")),
+                          ["jam"])
+        self.assertEquals(list(fileset.grep_files("mysubdir", "berry")),
+                          ["jam"])
+
     def test_fs_file_set(self):
         tempdir = self.example_tree()
         fileset = sbrowse.make_fileset(tempdir)
@@ -76,11 +85,7 @@ class FileSetTests(tempdir_test.TempDirTestCase):
         self.assertEquals(list(fileset.grep_files("", "blah")), [])
         self.assertEquals(list(fileset.grep_files("", "hello")),
                           ["foo", "bar"])
-        # Test subdir search
-        self.assertEquals(list(fileset.list_files("mysubdir")),
-                          ["jam"])
-        self.assertEquals(list(fileset.grep_files("mysubdir", "berry")),
-                          ["jam"])
+        self.check_file_set(fileset)
 
     def test_git_file_set(self):
         tempdir = self.example_tree()
@@ -90,15 +95,28 @@ class FileSetTests(tempdir_test.TempDirTestCase):
         fileset = sbrowse.make_fileset(tempdir)
         self.assertEquals(list(fileset.list_files("")),
                           ["foo", "mysubdir/jam"])
-        self.assertEquals(list(fileset.grep_files("", "blah")), [])
         # "bar" has not been git-added, so shouldn't be listed.
         self.assertEquals(list(fileset.grep_files("", "hello")), ["foo"])
         self.assertEquals(list(fileset.grep_files("", "Hello")), ["foo"])
-        # Test subdir search
-        self.assertEquals(list(fileset.list_files("mysubdir")),
-                          ["jam"])
-        self.assertEquals(list(fileset.grep_files("mysubdir", "berry")),
-                          ["jam"])
+        self.check_file_set(fileset)
+
+    def test_svn_file_set(self):
+        # Invoking SVN is slow compared with the rest of the tests.
+        # I think it is because SVN sleeps for upto 1 second.
+        repo_dir = self.make_temp_dir()
+        subprocess.check_call(["svnadmin", "create", repo_dir])
+        tempdir = self.example_tree()
+        subprocess.check_call(["svn", "checkout", "-q",
+                               "file://%s" % repo_dir, tempdir])
+        subprocess.check_call(["svn", "add", "-q", "foo", "mysubdir"],
+                              cwd=tempdir)
+        fileset = sbrowse.make_fileset(tempdir)
+        self.assertEquals(list(fileset.list_files("")),
+                          ["mysubdir/jam", "mysubdir", "foo"])
+        # "bar" has not been git-added, so shouldn't be listed.
+        self.assertEquals(list(fileset.grep_files("", "hello")), ["foo"])
+        self.assertEquals(list(fileset.grep_files("", "Hello")), ["foo"])
+        self.check_file_set(fileset)
 
 
 class GoldenTest(object):

@@ -161,6 +161,23 @@ class GitFileSet(FileSetBase):
             cwd=self._get_path(subdir))
 
 
+svn_find = os.path.join(os.path.abspath(os.path.dirname(__file__)), "svn-find")
+
+
+class SVNFileSet(FileSetBase):
+
+    def list_files(self, subdir):
+        return popen_filenames([svn_find], cwd=self._get_path(subdir))
+
+    def grep_files(self, subdir, sym):
+        ci_arg = "" if self._case_sensitive else "-i"
+        return popen_filenames(
+            ["sh", "-c",
+             '%s | xargs grep -l "$1" %s' % (svn_find, ci_arg),
+             "-", sym],
+            cwd=self._get_path(subdir))
+
+
 def sym_search_in_filenames(fileset, url_root, subdir, sym):
     sym_regexp = re.compile(re.escape(sym), re.IGNORECASE)
     yield "<pre class=code>"
@@ -470,7 +487,9 @@ def get_file_links(filename):
 
 
 def make_fileset(dir_path, **kwargs):
-    if os.path.exists(os.path.join(dir_path, ".git")):
+    if os.path.exists(os.path.join(dir_path, ".svn")):
+        return SVNFileSet(dir_path, **kwargs)
+    elif os.path.exists(os.path.join(dir_path, ".git")):
         return GitFileSet(dir_path, **kwargs)
     else:
         return FSFileSet(dir_path, **kwargs)

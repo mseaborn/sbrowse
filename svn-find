@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+# Lists all files that are part of an SVN working copy, including
+# files that have been added locally but not yet committed.
+#
+# This is similar to "git ls-files".  I am surprised that SVN does not
+# include a tool like this.
+
+# Dependencies:
+# sudo apt-get install python-svn
+
+import pysvn
+
+
+def main():
+    for status in pysvn.Client().status("."):
+        if (status["is_versioned"] and
+            status["text_status"] != pysvn.wc_status_kind.ignored and
+            status["path"] != "."):
+            print status["path"]
+
+
+if __name__ == "__main__":
+    main()
