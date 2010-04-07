@@ -120,8 +120,13 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
 
     def test_symbol_search(self):
         fileset = self.example_input()
-        page = self.get_response(fileset, "/sym/foo")
+        page = self.get_response(fileset, "/search", "sym=foo")
         self.assert_golden(page, "search.html")
+
+    def test_symbol_search_substring(self):
+        fileset = self.example_input()
+        page = self.get_response(fileset, "/search", "sym=oo")
+        self.assert_golden(page, "search-substring.html")
 
     def test_file_display(self):
         fileset = self.example_input()
@@ -158,11 +163,6 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
     def test_root_redirect(self):
         fileset = self.example_input()
         self.check_for_redirect(fileset, "/", dest="/file/")
-
-    def test_search_redirect(self):
-        fileset = self.example_input()
-        self.check_for_redirect(fileset, "/search", query="sym=shoe",
-                                dest="/sym/shoe")
 
     def test_dir_redirect(self):
         fileset = self.example_input()

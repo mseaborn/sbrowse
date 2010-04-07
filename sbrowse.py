@@ -45,17 +45,12 @@ def handle_request(fileset, environ, start_response):
         start_response("302 OK", [("Location", "%s/file/" % url_root)])
         return ()
     if path == "search":
-        start_response("302 OK",
-                       [("Location", "%s/sym/%s"
-                         % (url_root, query["sym"]))])
-        return ()
+        start_response("200 OK", [("Content-Type", "text/html")])
+        return sym_search(fileset, url_root, query["sym"])
     if "/" not in path:
         return not_found(start_response)
     elt, rest = path.split("/", 1)
-    if elt == "sym":
-        start_response("200 OK", [("Content-Type", "text/html")])
-        return sym_search(fileset, url_root, rest)
-    elif elt == "file":
+    if elt == "file":
         filename = rest
         if (filename != "" and not filename.endswith("/") and
             fileset.is_dir(filename)):
@@ -247,7 +242,7 @@ def format_sym_list(url_root, syms):
     body = []
     for symbol, count in sorted(syms.iteritems()):
         body.append(tag("li", 
-                        tagp("a", [("href", "%s/sym/%s" % (url_root, symbol))],
+                        tagp("a", [("href", search_url(url_root, symbol))],
                              symbol),
                         " (%i)" % count))
     return tag("ul", body)
@@ -395,9 +390,14 @@ def tokens(line):
             yield (line[i:], False)
             return
 
+
+def search_url(url_root, symbol):
+    return "%s/search?sym=%s" % (url_root, symbol)
+
+
 def link_token(url_root, token):
-    return "<a href='%(root)s/sym/%(sym)s'>%(sym)s</a>" % {"root": url_root,
-                                                           "sym": token}
+    url = search_url(url_root, token)
+    return "<a href='%s'>%s</a>" % (url, token)
 
 
 def tag(tag, *body):
