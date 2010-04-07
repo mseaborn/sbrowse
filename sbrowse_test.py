@@ -202,6 +202,13 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
         fileset = self.example_input()
         self.check_for_redirect(fileset, "/file/foodir", dest="/file/foodir/")
 
+    def test_security_initial_slash(self):
+        tempdir = self.make_temp_dir()
+        write_file(os.path.join(tempdir, "expectthis"), "expecteddata")
+        fileset = sbrowse.FSFileSet(tempdir)
+        output = self.get_response(fileset, "/file//expectthis")
+        assert "expecteddata" in output
+
 
 if __name__ == "__main__":
     if "--update" in sys.argv:

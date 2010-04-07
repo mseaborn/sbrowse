@@ -52,7 +52,8 @@ def handle_request(fileset, environ, start_response):
         return not_found(start_response)
     elt, rest = path.split("/", 1)
     if elt == "file":
-        filename = rest
+        # We don't want to treat this as an absolute pathname!
+        filename = rest.lstrip("/")
         if (filename != "" and not filename.endswith("/") and
             fileset.is_dir(filename)):
             start_response("302 OK",
