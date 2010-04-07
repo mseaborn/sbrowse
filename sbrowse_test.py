@@ -157,6 +157,11 @@ class RequestTests(GoldenTest, tempdir_test.TempDirTestCase):
         page = self.get_response(fileset, "/search", "sym=oo")
         self.assert_golden(page, "search-substring.html")
 
+    def test_symbol_search_subdir(self):
+        fileset = self.example_input()
+        page = self.get_response(fileset, "/search", "sym=nested&dir=foodir")
+        self.assert_golden(page, "search-subdir.html")
+
     def test_file_display(self):
         fileset = self.example_input()
         page = self.get_response(fileset, "/file/foofile")

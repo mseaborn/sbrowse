@@ -46,7 +46,8 @@ def handle_request(fileset, environ, start_response):
         return ()
     if path == "search":
         start_response("200 OK", [("Content-Type", "text/html")])
-        return sym_search(fileset, url_root, query["sym"])
+        return sym_search(fileset, url_root,
+                          query.get("dir", ""), query["sym"])
     if "/" not in path:
         return not_found(start_response)
     elt, rest = path.split("/", 1)
@@ -140,10 +141,10 @@ class GitFileSet(FileSetBase):
             cwd=os.path.join(self._dir_path, subdir))
 
 
-def sym_search_in_filenames(fileset, url_root, sym):
+def sym_search_in_filenames(fileset, url_root, subdir, sym):
     sym_regexp = re.compile(re.escape(sym), re.IGNORECASE)
     yield "<pre class=code>"
-    for filename in fileset.list_files(""):
+    for filename in fileset.list_files(subdir):
         match = sym_regexp.search(filename)
         if match:
             text = ("%s<strong>%s</strong>%s"
@@ -151,7 +152,7 @@ def sym_search_in_filenames(fileset, url_root, sym):
                        cgi.escape(match.group()),
                        cgi.escape(filename[match.end():])))
             yield ("<a href='%s/file/%s'>%s</a>\n"
-                   % (url_root, filename, text))
+                   % (url_root, os.path.join(subdir, filename), text))
     yield "</pre>"
 
 
@@ -195,29 +196,31 @@ class SymSearch(object):
                     yield (line_no, line_out)
 
 
-def sym_search(fileset, url_root, sym):
+def sym_search(fileset, url_root, subdir, sym):
     for x in stylesheet():
         yield x
     yield output_tag([tag("title", "symbol: ", sym),
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path(url_root, "")),
                            tag("div", search_form(url_root, sym)))])
-    for x in sym_search_in_filenames(fileset, url_root, sym):
+    for x in sym_search_in_filenames(fileset, url_root, subdir, sym):
         yield x
     matcher = SymSearch(sym)
     yield "<div class=all_matches>"
-    for filename in fileset.grep_files("", sym):
+    for rel_filename in fileset.grep_files(subdir, sym):
+        filename = os.path.join(subdir, rel_filename)
         file_matches = False
         fh = fileset.open_file(filename)
         for line_no, line_out in matcher.match_lines(url_root, fh):
             args = {"root": url_root,
                     "sym": sym,
+                    "rel_file": rel_filename,
                     "file": filename,
                     "line_no": line_no + 1}
             if not file_matches:
                 file_matches = True
                 yield ("<a href='%(root)s/file/%(file)s?sym=%(sym)s"
-                       "#line%(line_no)i'>%(file)s</a>:"
+                       "#line%(line_no)i'>%(rel_file)s</a>:"
                        % args)
             yield "<div class='code matches_in_file'>"
             yield ("<a href='%(root)s/file/%(file)s?sym=%(sym)s"
