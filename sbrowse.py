@@ -340,6 +340,7 @@ def show_dir(fileset, url_root, path):
         pathname = os.path.join(path, leafname)
         if fileset.is_dir(pathname):
             size = ""
+            leafname += "/"
         else:
             st = fileset.stat_path(pathname)
             size = str(st.st_size)
