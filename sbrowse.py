@@ -167,9 +167,9 @@ def sym_search_in_filenames(fileset, url_root, subdir, sym):
 class SymSearch(object):
 
     def __init__(self, sym):
-        self.sym = sym
-        self.sym_regexp = re.compile(re.escape(sym))
-        self.sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
+        self._sym = sym
+        self._sym_regexp = re.compile(re.escape(sym))
+        self._sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
         self.syms_found = {}
         self.syms_found_ci = {}
 
@@ -179,15 +179,15 @@ class SymSearch(object):
         does_match = False
         line_out = []
         for token, is_symbol in tokens(line):
-            if token == self.sym:
+            if token == self._sym:
                 line_out.append("<strong>%s</strong>" % token)
                 does_match = True
             elif is_symbol:
                 line_out.append(link_token(url_root, token))
-                if self.sym_regexp.search(token):
+                if self._sym_regexp.search(token):
                     self.syms_found[token] = \
                         self.syms_found.get(token, 0) + 1
-                elif self.sym_regexp_ci.search(token):
+                elif self._sym_regexp_ci.search(token):
                     self.syms_found_ci[token] = \
                         self.syms_found_ci.get(token, 0) + 1
             else:
@@ -198,7 +198,7 @@ class SymSearch(object):
         for line_no, line in enumerate(lines):
             line = line.rstrip("\n\r")
             # Regexp search is an optimisation: could be removed
-            if self.sym_regexp_ci.search(line):
+            if self._sym_regexp_ci.search(line):
                 does_match, line_out = self.match_line(url_root, line)
                 if does_match:
                     yield (line_no, line_out)
