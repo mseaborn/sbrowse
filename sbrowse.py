@@ -107,14 +107,14 @@ def popen_filenames(args, **kwargs):
 
 class FSFileSet(FileSetBase):
 
-    def list_files(self):
+    def list_files(self, subdir):
         # Note that with the sorting there is no pipelining, so we may
         # as well do this in Python.
         return popen_filenames(
             ["sh", "-c", 'find -not -name "*.pyc" | sort'],
-            cwd=self._dir_path)
+            cwd=os.path.join(self._dir_path, subdir))
 
-    def grep_files(self, sym):
+    def grep_files(self, subdir, sym):
         # Note that using "-i" makes this go a lot slower.
         ci_arg = "" if self._case_sensitive else " -i"
         return popen_filenames(
@@ -124,25 +124,26 @@ class FSFileSet(FileSetBase):
              '-and -not -name "#*#" '
              '-print0 | xargs --null grep -l "$1"' + ci_arg,
              "-", sym],
-            cwd=self._dir_path)
+            cwd=os.path.join(self._dir_path, subdir))
 
 
 class GitFileSet(FileSetBase):
 
-    def list_files(self):
-        return popen_filenames(["git", "ls-files"], cwd=self._dir_path)
+    def list_files(self, subdir):
+        return popen_filenames(["git", "ls-files"],
+                               cwd=os.path.join(self._dir_path, subdir))
 
-    def grep_files(self, sym):
+    def grep_files(self, subdir, sym):
         ci_arg = [] if self._case_sensitive else ["-i"]
         return popen_filenames(
             ["git", "grep"] + ci_arg + ["--text", "-l", sym],
-            cwd=self._dir_path)
+            cwd=os.path.join(self._dir_path, subdir))
 
 
 def sym_search_in_filenames(fileset, url_root, sym):
     sym_regexp = re.compile(re.escape(sym), re.IGNORECASE)
     yield "<pre class=code>"
-    for filename in fileset.list_files():
+    for filename in fileset.list_files(""):
         match = sym_regexp.search(filename)
         if match:
             text = ("%s<strong>%s</strong>%s"
@@ -205,7 +206,7 @@ def sym_search(fileset, url_root, sym):
         yield x
     matcher = SymSearch(sym)
     yield "<div class=all_matches>"
-    for filename in fileset.grep_files(sym):
+    for filename in fileset.grep_files("", sym):
         file_matches = False
         fh = fileset.open_file(filename)
         for line_no, line_out in matcher.match_lines(url_root, fh):

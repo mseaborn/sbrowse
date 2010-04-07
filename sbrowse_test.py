@@ -59,17 +59,46 @@ class TokenizerTest(unittest.TestCase):
 
 class FileSetTests(tempdir_test.TempDirTestCase):
 
-    def test_git_file_set(self):
+    def example_tree(self):
         tempdir = self.make_temp_dir()
         write_file(os.path.join(tempdir, "foo"), "Hello world")
         write_file(os.path.join(tempdir, "bar"), "Hello, this is not listed")
+        os.mkdir(os.path.join(tempdir, "mysubdir"))
+        write_file(os.path.join(tempdir, "mysubdir", "jam"), "raspberry")
+        return tempdir
+
+    def test_fs_file_set(self):
+        tempdir = self.example_tree()
+        fileset = sbrowse.make_fileset(tempdir)
+        self.assertEquals(
+            list(fileset.list_files("")),
+            [".", "./bar", "./foo", "./mysubdir", "./mysubdir/jam"])
+        self.assertEquals(list(fileset.grep_files("", "blah")), [])
+        self.assertEquals(list(fileset.grep_files("", "hello")),
+                          ["./foo", "./bar"])
+        # Test subdir search
+        self.assertEquals(list(fileset.list_files("mysubdir")),
+                          [".", "./jam"])
+        self.assertEquals(list(fileset.grep_files("mysubdir", "berry")),
+                          ["./jam"])
+
+    def test_git_file_set(self):
+        tempdir = self.example_tree()
         subprocess.check_call(["git", "init", "-q"], cwd=tempdir)
         subprocess.check_call(["git", "add", "foo"], cwd=tempdir)
+        subprocess.check_call(["git", "add", "mysubdir/jam"], cwd=tempdir)
         fileset = sbrowse.make_fileset(tempdir)
-        self.assertEquals(list(fileset.list_files()), ["foo"])
-        self.assertEquals(list(fileset.grep_files("blah")), [])
+        self.assertEquals(list(fileset.list_files("")),
+                          ["foo", "mysubdir/jam"])
+        self.assertEquals(list(fileset.grep_files("", "blah")), [])
         # "bar" has not been git-added, so shouldn't be listed.
-        self.assertEquals(list(fileset.grep_files("hello")), ["foo"])
+        self.assertEquals(list(fileset.grep_files("", "hello")), ["foo"])
+        self.assertEquals(list(fileset.grep_files("", "Hello")), ["foo"])
+        # Test subdir search
+        self.assertEquals(list(fileset.list_files("mysubdir")),
+                          ["jam"])
+        self.assertEquals(list(fileset.grep_files("mysubdir", "berry")),
+                          ["jam"])
 
 
 class GoldenTest(object):
