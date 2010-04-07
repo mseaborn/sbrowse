@@ -60,7 +60,8 @@ def handle_request(fileset, environ, start_response):
             return ()
         else:
             start_response("200 OK", [("Content-Type", "text/html")])
-            return show_file_or_dir(fileset, url_root, filename, query)
+            subdir = ""
+            return show_file_or_dir(fileset, url_root, filename, subdir, query)
     else:
         return not_found(start_response)
 
@@ -166,7 +167,8 @@ def sym_search_in_filenames(fileset, url_root, subdir, sym):
 
 class SymSearch(object):
 
-    def __init__(self, sym):
+    def __init__(self, subdir, sym):
+        self._subdir = subdir
         self._sym = sym
         self._sym_regexp = re.compile(re.escape(sym))
         self._sym_regexp_ci = re.compile(re.escape(sym), re.IGNORECASE)
@@ -183,7 +185,7 @@ class SymSearch(object):
                 line_out.append("<strong>%s</strong>" % token)
                 does_match = True
             elif is_symbol:
-                line_out.append(link_token(url_root, token))
+                line_out.append(link_token(url_root, self._subdir, token))
                 if self._sym_regexp.search(token):
                     self.syms_found[token] = \
                         self.syms_found.get(token, 0) + 1
@@ -213,7 +215,7 @@ def sym_search(fileset, url_root, subdir, sym):
                            tag("div", search_form(url_root, sym)))])
     for x in sym_search_in_filenames(fileset, url_root, subdir, sym):
         yield x
-    matcher = SymSearch(sym)
+    matcher = SymSearch(subdir, sym)
     yield "<div class=all_matches>"
     for rel_filename in fileset.grep_files(subdir, sym):
         filename = os.path.join(subdir, rel_filename)
@@ -245,27 +247,28 @@ def sym_search(fileset, url_root, subdir, sym):
         yield "none"
     else:
         if len(matcher.syms_found) > 0:
-            yield output_tag(format_sym_list(url_root, matcher.syms_found))
+            yield output_tag(format_sym_list(url_root, subdir,
+                                             matcher.syms_found))
         if len(matcher.syms_found_ci) > 0:
             yield "with case relaxed:\n"
-            yield output_tag(format_sym_list(url_root, matcher.syms_found_ci))
+            yield output_tag(format_sym_list(url_root, subdir,
+                                             matcher.syms_found_ci))
 
-def format_sym_list(url_root, syms):
+def format_sym_list(url_root, subdir, syms):
     body = []
     for symbol, count in sorted(syms.iteritems()):
-        body.append(tag("li", 
-                        tagp("a", [("href", search_url(url_root, symbol))],
-                             symbol),
+        url = search_url(url_root, subdir, symbol)
+        body.append(tag("li", tagp("a", [("href", url)], symbol),
                         " (%i)" % count))
     return tag("ul", body)
 
-def show_file_or_dir(fileset, url_root, filename, query):
+def show_file_or_dir(fileset, url_root, filename, subdir, query):
     if fileset.is_dir(filename):
         return show_dir(fileset, url_root, filename)
     else:
-        return show_file(fileset, url_root, filename, query)
+        return show_file(fileset, url_root, filename, subdir, query)
 
-def show_file(fileset, url_root, filename, query):
+def show_file(fileset, url_root, filename, subdir, query):
     for x in stylesheet():
         yield x
     links = [tag("div", tagp("a", [("href", url)], name))
@@ -276,7 +279,7 @@ def show_file(fileset, url_root, filename, query):
                            tag("div", search_form(url_root, "")),
                            links)])
     if "sym" in query:
-        matcher = SymSearch(query["sym"])
+        matcher = SymSearch(subdir, query["sym"])
         match_line_nos = []
         fh = fileset.open_file(filename)
         try:
@@ -292,7 +295,7 @@ def show_file(fileset, url_root, filename, query):
                                 " "]
                                for line_no in match_line_nos]))
 
-        matcher = SymSearch(query["sym"])
+        matcher = SymSearch(subdir, query["sym"])
         fh = fileset.open_file(filename)
         try:
             yield "<pre class=code>"
@@ -318,7 +321,7 @@ def show_file(fileset, url_root, filename, query):
                 yield "<a name='line%i'>" % (line_no + 1)
                 for token, is_symbol in tokens(line):
                     if is_symbol:
-                        yield link_token(url_root, token)
+                        yield link_token(url_root, subdir, token)
                     else:
                         yield cgi.escape(token)
             yield "</pre>"
@@ -403,12 +406,12 @@ def tokens(line):
             return
 
 
-def search_url(url_root, symbol):
-    return "%s/search?sym=%s" % (url_root, symbol)
+def search_url(url_root, subdir, symbol):
+    return "%s/search?dir=%s&sym=%s" % (url_root, subdir, symbol)
 
 
-def link_token(url_root, token):
-    url = search_url(url_root, token)
+def link_token(url_root, subdir, token):
+    url = search_url(url_root, subdir, token)
     return "<a href='%s'>%s</a>" % (url, token)
 
 
