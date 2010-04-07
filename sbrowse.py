@@ -106,26 +106,34 @@ def popen_filenames(args, **kwargs):
         yield line.rstrip("\n")
 
 
+# Remove the "./" prefix that "find" outputs.
+def tidy_filelist(iterable):
+    for filename in iterable:
+        if filename != ".":
+            assert filename.startswith("./")
+            yield filename[2:]
+
+
 class FSFileSet(FileSetBase):
 
     def list_files(self, subdir):
         # Note that with the sorting there is no pipelining, so we may
         # as well do this in Python.
-        return popen_filenames(
+        return tidy_filelist(popen_filenames(
             ["sh", "-c", 'find -not -name "*.pyc" | sort'],
-            cwd=os.path.join(self._dir_path, subdir))
+            cwd=os.path.join(self._dir_path, subdir)))
 
     def grep_files(self, subdir, sym):
         # Note that using "-i" makes this go a lot slower.
         ci_arg = "" if self._case_sensitive else " -i"
-        return popen_filenames(
+        return tidy_filelist(popen_filenames(
             ["sh", "-c",
              'find -not -name "*.pyc" '
              '-and -not -name "*~" '
              '-and -not -name "#*#" '
              '-print0 | xargs --null grep -l "$1"' + ci_arg,
              "-", sym],
-            cwd=os.path.join(self._dir_path, subdir))
+            cwd=os.path.join(self._dir_path, subdir)))
 
 
 class GitFileSet(FileSetBase):

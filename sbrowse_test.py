@@ -72,15 +72,15 @@ class FileSetTests(tempdir_test.TempDirTestCase):
         fileset = sbrowse.make_fileset(tempdir)
         self.assertEquals(
             list(fileset.list_files("")),
-            [".", "./bar", "./foo", "./mysubdir", "./mysubdir/jam"])
+            ["bar", "foo", "mysubdir", "mysubdir/jam"])
         self.assertEquals(list(fileset.grep_files("", "blah")), [])
         self.assertEquals(list(fileset.grep_files("", "hello")),
-                          ["./foo", "./bar"])
+                          ["foo", "bar"])
         # Test subdir search
         self.assertEquals(list(fileset.list_files("mysubdir")),
-                          [".", "./jam"])
+                          ["jam"])
         self.assertEquals(list(fileset.grep_files("mysubdir", "berry")),
-                          ["./jam"])
+                          ["jam"])
 
     def test_git_file_set(self):
         tempdir = self.example_tree()
