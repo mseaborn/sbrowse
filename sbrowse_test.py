@@ -118,6 +118,29 @@ class FileSetTests(tempdir_test.TempDirTestCase):
         self.assertEquals(list(fileset.grep_files("", "Hello")), ["foo"])
         self.check_file_set(fileset)
 
+    def test_combined_file_set(self):
+        tempdir1 = self.make_temp_dir()
+        write_file(os.path.join(tempdir1, "foo"), "qux")
+        os.mkdir(os.path.join(tempdir1, "subdir"))
+        tempdir2 = self.make_temp_dir()
+        write_file(os.path.join(tempdir2, "bar"), "quux")
+        fileset = sbrowse.CombinedFileSet({
+                "aa": sbrowse.make_fileset(tempdir1),
+                "bb": sbrowse.make_fileset(tempdir2)})
+        self.assertEquals(fileset.is_dir(""), True)
+        self.assertEquals(fileset.is_dir("aa"), True)
+        self.assertEquals(fileset.is_dir("aa/subdir"), True)
+        self.assertEquals(fileset.is_dir("aa/foo"), False)
+        self.assertEquals(fileset.list_dir(""), ["aa", "bb"])
+        self.assertEquals(fileset.list_dir("aa"), ["foo", "subdir"])
+        self.assertEquals(list(fileset.list_files("aa")), ["foo", "subdir"])
+        self.assertEquals(list(fileset.grep_files("aa", "qu")), ["foo"])
+        self.assertEquals(list(fileset.list_files("")),
+                          ["aa", "aa/foo", "aa/subdir",
+                           "bb", "bb/bar"])
+        self.assertEquals(list(fileset.grep_files("", "qux")), ["aa/foo"])
+        self.assertEquals(list(fileset.grep_files("", "quux")), ["bb/bar"])
+
 
 class GoldenTest(object):
 

@@ -76,6 +76,13 @@ def check_filename(filename):
             raise AssertionError("Pathname %r contains '..'" % filename)
 
 
+def split_path(filename):
+    if "/" in filename:
+        return filename.split("/", 1)
+    else:
+        return filename, ""
+
+
 def stylesheet():
     fh = open(css_file, "r")
     try:
@@ -176,6 +183,54 @@ class SVNFileSet(FileSetBase):
              '%s | xargs grep -l "$1" %s' % (svn_find, ci_arg),
              "-", sym],
             cwd=self._get_path(subdir))
+
+
+class CombinedFileSet(object):
+
+    def __init__(self, filesets):
+        self._filesets = filesets
+
+    def _delegate(self, attr, filename, *args):
+        assert filename != ""
+        elt, rest = split_path(filename)
+        return getattr(self._filesets[elt], attr)(rest, *args)
+
+    def is_dir(self, filename):
+        if filename == "":
+            return True
+        return self._delegate("is_dir", filename)
+
+    def list_dir(self, filename):
+        if filename == "":
+            return sorted(self._filesets.keys())
+        return self._delegate("list_dir", filename)
+
+    def open_file(self, filename):
+        return self._delegate("open_file", filename)
+
+    def stat_path(self, filename):
+        return self._delegate("stat_path", filename)
+
+    def _list_all(self):
+        for subdir, fileset in sorted(self._filesets.iteritems()):
+            yield subdir
+            for rel_path in fileset.list_files(""):
+                yield os.path.join(subdir, rel_path)
+
+    def _grep_all(self, sym):
+        for subdir, fileset in sorted(self._filesets.iteritems()):
+            for rel_path in fileset.grep_files("", sym):
+                yield os.path.join(subdir, rel_path)
+
+    def list_files(self, filename):
+        if filename == "":
+            return self._list_all()
+        return self._delegate("list_files", filename)
+
+    def grep_files(self, filename, sym):
+        if filename == "":
+            return self._grep_all(sym)
+        return self._delegate("grep_files", filename, sym)
 
 
 def sym_search_in_filenames(fileset, url_root, subdir, sym):
