@@ -295,7 +295,7 @@ def sym_search(fileset, url_root, subdir, sym):
     yield output_tag([tag("title", "symbol: ", sym),
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path(url_root, "")),
-                           tag("div", search_form(url_root, sym)))])
+                           tag("div", search_form(url_root, subdir, sym)))])
     for x in sym_search_in_filenames(fileset, url_root, subdir, sym):
         yield x
     matcher = SymSearch(subdir, sym)
@@ -347,7 +347,7 @@ def format_sym_list(url_root, subdir, syms):
 
 def show_file_or_dir(fileset, url_root, filename, subdir, query):
     if fileset.is_dir(filename):
-        return show_dir(fileset, url_root, filename)
+        return show_dir(fileset, url_root, filename, subdir)
     else:
         return show_file(fileset, url_root, filename, subdir, query)
 
@@ -359,7 +359,7 @@ def show_file(fileset, url_root, filename, subdir, query):
     yield output_tag([tag("title", filename),
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path(url_root, filename)),
-                           tag("div", search_form(url_root, "")),
+                           tag("div", search_form(url_root, subdir, "")),
                            links)])
     if "sym" in query:
         matcher = SymSearch(subdir, query["sym"])
@@ -411,14 +411,14 @@ def show_file(fileset, url_root, filename, subdir, query):
         finally:
             fh.close()
 
-def show_dir(fileset, url_root, path):
+def show_dir(fileset, url_root, path, subdir):
     title = path if path != "" else "[top]"
     for x in stylesheet():
         yield x
     yield output_tag([tag("title", title),
                       tagp("div", [("class", "box")],
                            tag("div", breadcrumb_path(url_root, path)),
-                           tag("div", search_form(url_root, "")))])
+                           tag("div", search_form(url_root, subdir, "")))])
     def format_entry(leafname):
         pathname = os.path.join(path, leafname)
         if fileset.is_dir(pathname):
@@ -450,7 +450,7 @@ def exclude(leafname):
     return False
 
 
-def search_form(url_root, default_sym):
+def search_form(url_root, subdir, default_sym):
     script = """
 window.onload = function () {
     document.getElementById("form_field").focus();
@@ -458,6 +458,9 @@ window.onload = function () {
 """
     return tagp("form", [("action", "%s/search" % url_root),
                          ("method", "get")],
+                tagp("input", [("type", "hidden"),
+                               ("name", "dir"),
+                               ("value", subdir)]),
                 tagp("input", [("id", "form_field"),
                                ("type", "text"),
                                ("name", "sym"),
